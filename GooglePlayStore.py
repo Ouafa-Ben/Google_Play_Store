@@ -7,10 +7,10 @@ import seaborn as sns
 # Import dataset
 df = pd.read_csv("googleplaystore.csv")
 
-# Check the dataset first for any anomalies
-print(df.head(5).T)
+# Check the dataset for any anomalies
+print(df.head(10).T)
 
-# # Remove Genres, last Updated, Current Ver and Android Ver
+# Remove Genres, last Updated, Current Ver and Android Ver
 del df["Genres"]
 del df["Last Updated"]
 del df["Current Ver"]
@@ -25,14 +25,14 @@ print("\nThere are {} duplicates in the Apps column".format(duplicates))
 
 # Remove duplicates
 duplicates = df.drop_duplicates("App", inplace=True)
-print("\nAfter we removed the duplicates we have {}".format(duplicates))
+print("\nAfter we removed them we now have {} duplicates".format(duplicates))
 
 # Check for NULL values
 print(df.isna().any())
 
 # Clean dataset
 # Remove special characters or replace them if needed then change data type
-# Work on App column, remove weird app names and special characters
+# Work on App column, remove weird app names and replace special characters if needed
 df = df.drop(df[df["App"] == "#NAME?"].index)
 df = df.drop(df[df["App"] == "FP Ð Ð°Ð·Ð±Ð¸Ñ‚Ñ‹Ð¹ Ð´Ð¸ÑÐ¿Ð»ÐµÐ¹"].index)
 df["App"] = df.App.str.replace("&", " and ")
@@ -78,27 +78,30 @@ df.rename(columns={'Content Rating': 'Content_Rating'}, inplace=True)
 df["Content_Rating"] = df.Content_Rating.str.replace("Mature 17+", "Adults 18", regex=True)
 df["Content_Rating"] = df.Content_Rating.str.replace("Adults only 18+", "Adults 18", regex=True)
 
+# Last check for data types 
 print(df.info())
 
 # End of Data Cleaning
-# Start of Data insights
+# Start of Data Exploration 
 plt.rcParams["axes.spines.top"] = False
 plt.rcParams["axes.spines.right"] = False
 
-# Rating Distribution
-rated_apps = df[df["Rating"] != 0]
-sns.kdeplot(rated_apps.Rating, color="indianred", fill=True)
-plt.title("Distribution of Rating")
-plt.xlabel("Rating")
-plt.ylabel("Frequency")
-plt.show()
-
-# Categories count
+# Find number of Apps in each Category
 g = sns.catplot(y="Category", data=df, kind="count", order=df["Category"].value_counts().index, palette="GnBu_r").set(title="Top Categories in Google Play Store")
 g.set_axis_labels("Number of Apps", "Category")
 plt.show()
 
-# Apps Type
+# Find the percentage of installed apps in each category 
+total_num_downloads = df["Installs"].sum()
+installed_apps_cat = df[["Category", "Installs"]]
+installed_apps_cat_grouped = df.groupby("Category")["Installs"]
+installed_apps_cat_counted = installed_apps_cat_grouped.sum()
+installed_apps_cat_counted = installed_apps_cat_counted/total_num_downloads * 100
+installed_apps_cat_counted = installed_apps_cat_counted.sort_values(ascending=False)
+print(installed_apps_cat_counted)
+print(total_num_downloads)
+
+# Find the percentage of free and paid apps 
 total_apps = df["Type"].count()
 type_app = df[["App", "Type"]]
 grouped_type_app = type_app.groupby("Type")
@@ -113,56 +116,14 @@ plt.pie(free_paid_data, labels=labels, colors=color, autopct="%.0f%%")
 plt.title("Percentage of Free and Paid apps in Google Play Store")
 plt.show()
 
-# Content Rating Pie Chart
-total_content_rating = df["Content_Rating"].count()
-content_rating = df[["App", "Content_Rating"]]
-grouped_content_rating = content_rating.groupby("Content_Rating")
-counted_content_rating = grouped_content_rating.count()
-P_content_rating = round(counted_content_rating/total_content_rating*100)
-print(P_content_rating)
-
-P_content_rating = [4, 82, 3, 11]
-labels = ["Adults 18+", "Everyone", "Everyone 10+", "Teen"]
-color = sns.color_palette("Oranges")
-plt.pie(P_content_rating, labels=labels, colors=color, autopct="%.0f%%")
-plt.title("Percentage of Apps Content Rating")
-plt.show()
-
-# Category vs Reviews
-Category_by_reviews = df[["Category", "Reviews"]]
-total_reviews = Category_by_reviews["Reviews"].sum()
-Category_by_reviews = df.groupby("Category")["Reviews"].sum()
-Category_by_reviews = Category_by_reviews/total_reviews * 100
-Category_by_reviews = Category_by_reviews.sort_values(ascending=False)
-g = sns.barplot(x=Category_by_reviews, y=Category_by_reviews.index, data=df, palette="Blues_r").set(title="Percentage of Reviews per Category")
-plt.xlim(0, 100)
-plt.show()
-
-# Category vs Rating
-g = sns.catplot(x="Category", y="Rating", data=df[df["Rating"] != 0], kind="box", palette="BuGn").set(title="Distribution of Ratings across Categories")
-g.despine(left=True)
-g.set(xticks=range(0, 33))
-g.set_ylabels("Rating")
-g.set_xticklabels(rotation=90)
-plt.show()
-
-# Category vs Installs
-total_num_downloads = df["Installs"].sum()
-installed_apps_cat = df[["Category", "Installs"]]
-installed_apps_cat_grouped = df.groupby("Category")["Installs"]
-installed_apps_cat_counted = installed_apps_cat_grouped.sum()
-installed_apps_cat_counted = installed_apps_cat_counted/total_num_downloads * 100
-installed_apps_cat_counted = installed_apps_cat_counted.sort_values(ascending=False)
-print(installed_apps_cat_counted)
-print(total_num_downloads)
-
-# Type vs Installs
+# Find the percentage of installed free and paid apps 
 total_num_downloads = df["Installs"].sum()
 installed_type = df[["Type", "Installs"]]
 installed_type_grouped = df.groupby("Type")["Installs"]
 installed_type_counted = installed_type_grouped.sum()/total_num_downloads * 100
 print(installed_type_counted)
 
+# Now focus on Paid apps only 
 # Find popular categories among paid apps
 new_df = df[["Type", "Category"]]
 new_df = df[df["Type"] == "Paid"]
@@ -181,7 +142,32 @@ g = sns.barplot(x=installed_cat, y=installed_cat.index, data=new_df, palette="Bu
 plt.xlim(0, 100)
 plt.show()
 
-# Free and Paid Apps Content rating
+# Find mean, max, min app prices
+app_prices_info = df[["App", "Category", "Price"]]
+app_prices_info = app_prices_info[app_prices_info["Price"] != 0]
+print(app_prices_info["Price"].describe())
+
+# Find everything about the top 10 paid apps
+top10_paid_apps = df[df["Type"] == "Paid"]
+top10_paid_apps = top10_paid_apps.sort_values(by='Price', ascending=False)
+print(top10_paid_apps.head(10))
+
+# Content Rating Pie Chart
+total_content_rating = df["Content_Rating"].count()
+content_rating = df[["App", "Content_Rating"]]
+grouped_content_rating = content_rating.groupby("Content_Rating")
+counted_content_rating = grouped_content_rating.count()
+P_content_rating = round(counted_content_rating/total_content_rating*100)
+print(P_content_rating)
+
+P_content_rating = [4, 82, 3, 11]
+labels = ["Adults 18+", "Everyone", "Everyone 10+", "Teen"]
+color = sns.color_palette("Oranges")
+plt.pie(P_content_rating, labels=labels, colors=color, autopct="%.0f%%")
+plt.title("Percentage of Apps Content Rating")
+plt.show()
+
+# Find number of paid apps content rating
 new_df = df[["Type", "Content_Rating"]]
 new_df = new_df[new_df["Type"] == "Paid"]
 palette = "BuPu"
@@ -190,7 +176,7 @@ g.set_axis_labels("Content Rating", "Number of Paid Apps")
 g.set_xticklabels(rotation=90)
 plt.show()
 
-# Paid Apps content rating vs installs
+# Find the percentage of installed paid apps content rating
 new_df = df[["Type", "Content_Rating", "Installs"]]
 new_df = new_df[new_df["Type"] == "Paid"]
 total_installed_cat = new_df["Installs"].sum()
@@ -204,15 +190,31 @@ plt.ylabel("Installed Apps (%)")
 plt.ylim(0, 100)
 plt.show()
 
-# Find mean, max, min app prices
-app_prices_info = df[["App", "Category", "Price"]]
-app_prices_info = app_prices_info[app_prices_info["Price"] != 0]
-print(app_prices_info["Price"].describe())
+# Find the percentage of reviews across categories
+Category_by_reviews = df[["Category", "Reviews"]]
+total_reviews = Category_by_reviews["Reviews"].sum()
+Category_by_reviews = df.groupby("Category")["Reviews"].sum()
+Category_by_reviews = Category_by_reviews/total_reviews * 100
+Category_by_reviews = Category_by_reviews.sort_values(ascending=False)
+g = sns.barplot(x=Category_by_reviews, y=Category_by_reviews.index, data=df, palette="Blues_r").set(title="Percentage of Reviews per Category")
+plt.xlim(0, 100)
+plt.show()
 
-# Find everything about the top 10 paid apps
-top10_paid_apps = df[df["Type"] == "Paid"]
-top10_paid_apps = top10_paid_apps.sort_values(by='Price', ascending=False)
-print(top10_paid_apps.head(10))
+# Rating Distribution
+rated_apps = df[df["Rating"] != 0]
+sns.kdeplot(rated_apps.Rating, color="indianred", fill=True)
+plt.title("Distribution of Rating")
+plt.xlabel("Rating")
+plt.ylabel("Frequency")
+plt.show()
+
+# Boxplot of Category vs Rating
+g = sns.catplot(x="Category", y="Rating", data=df[df["Rating"] != 0], kind="box", palette="BuGn").set(title="Boxplot of Ratings across Categories")
+g.despine(left=True)
+g.set(xticks=range(0, 33))
+g.set_ylabels("Rating")
+g.set_xticklabels(rotation=90)
+plt.show()
 
 # END
 print("\nThis is my first python project I hope you enjoyed reading my code :)")
